@@ -1,5 +1,22 @@
-from pydantic import SecretStr, field_validator
-from pydantic_settings import BaseSettings, SettingsConfigDict
+import json as _json
+from typing import Any
+
+from pydantic import SecretStr
+from pydantic.fields import FieldInfo
+from pydantic_settings import BaseSettings, DotEnvSettingsSource, PydanticBaseSettingsSource, SettingsConfigDict
+
+
+class _CsvFallbackDotEnvSource(DotEnvSettingsSource):
+    """DotEnvSettingsSource that falls back to comma-splitting for list fields
+    instead of raising SettingsError when the value is not valid JSON."""
+
+    def prepare_field_value(self, field_name: str, field: FieldInfo, value: Any, value_is_complex: bool) -> Any:
+        if self.field_is_complex(field) and isinstance(value, str):
+            try:
+                return _json.loads(value)
+            except (ValueError, TypeError):
+                return [item.strip() for item in value.split(",") if item.strip()]
+        return super().prepare_field_value(field_name, field, value, value_is_complex)
 
 
 class Settings(BaseSettings):
@@ -34,12 +51,19 @@ class Settings(BaseSettings):
     schedule_minute: int = 0
     schedule_timezone: str = "Asia/Singapore"
 
-    @field_validator("watch_tickers", "watch_keywords", "email_to", mode="before")
+    # --- Logging ---
+    log_dir: str = "logs"
+
     @classmethod
-    def split_csv(cls, v: str | list) -> list[str]:
-        if isinstance(v, str):
-            return [x.strip() for x in v.split(",") if x.strip()]
-        return v
+    def settings_customise_sources(
+        cls,
+        settings_cls: type[BaseSettings],
+        init_settings: PydanticBaseSettingsSource,
+        env_settings: PydanticBaseSettingsSource,
+        dotenv_settings: PydanticBaseSettingsSource,
+        file_secret_settings: PydanticBaseSettingsSource,
+    ) -> tuple[PydanticBaseSettingsSource, ...]:
+        return (init_settings, env_settings, _CsvFallbackDotEnvSource(settings_cls), file_secret_settings)
 
 
 class _LazySettings:
