@@ -13,7 +13,7 @@ from finax.state import AnalyzedArticle, FinaxState, NewsArticle, SentimentSumma
 
 logger = logging.getLogger(__name__)
 
-CHUNK_SIZE = 5  # articles per async batch (keeps RPM under free-tier 10 RPM)
+CHUNK_SIZE = 5    # articles per async batch
 CHUNK_DELAY = 1.0  # seconds between chunks
 
 
@@ -40,7 +40,7 @@ class SummaryOutput(BaseModel):
 
 def _build_llm() -> ChatGoogleGenerativeAI:
     return ChatGoogleGenerativeAI(
-        model="gemini-2.5-flash-preview-04-17",
+        model="gemini-2.5-flash",
         google_api_key=settings.google_api_key.get_secret_value(),  # type: ignore[arg-type]
         temperature=0.2,
     )

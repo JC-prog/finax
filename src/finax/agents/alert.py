@@ -163,20 +163,31 @@ def _format_email(
 # ---------------------------------------------------------------------------
 
 
-async def send_telegram(message: str) -> None:
-    """Send a MarkdownV2 message to the configured Telegram chat."""
+async def send_telegram(message: str, parse_mode: str = "MarkdownV2") -> None:
+    """Send a message to the configured Telegram chat."""
     token = settings.telegram_bot_token.get_secret_value()
     url = TELEGRAM_API.format(token=token)
-    payload = {
+    payload: dict = {
         "chat_id": settings.telegram_chat_id,
         "text": message,
-        "parse_mode": "MarkdownV2",
-        "disable_web_page_preview": True,
+        "link_preview_options": {"is_disabled": True},
     }
+    if parse_mode:
+        payload["parse_mode"] = parse_mode
     async with httpx.AsyncClient(timeout=15.0) as client:
         response = await client.post(url, json=payload)
+        if not response.is_success:
+            logger.error("Telegram API %s: %s", response.status_code, response.text)
         response.raise_for_status()
     logger.info("Telegram message sent successfully.")
+
+
+async def notify_error(message: str) -> None:
+    """Send a plain-text error notification to Telegram. Never raises."""
+    try:
+        await send_telegram(f"\u26a0\ufe0f Finax error: {message}", parse_mode="")
+    except Exception as exc:
+        logger.error("Failed to send Telegram error notification: %s", exc)
 
 
 async def send_email(subject: str, plain: str, html: str) -> None:
@@ -220,8 +231,23 @@ async def alert_node(state: FinaxState) -> dict:
     plain, html = _format_email(summary, analyzed, run_ts)
     subject = f"Finax Daily Digest — {date_str}"
 
+    async def _send_telegram_with_fallback() -> None:
+        try:
+            await send_telegram(telegram_msg)
+        except httpx.HTTPStatusError as exc:
+            if exc.response.status_code == 400:
+                logger.warning("MarkdownV2 rejected (400), retrying as plain text.")
+                fallback = (
+                    f"Finax Daily Digest\n\n"
+                    f"Bullish: {summary.bullish_count} | Bearish: {summary.bearish_count} | Neutral: {summary.neutral_count}\n\n"
+                    f"{summary.market_outlook}"
+                )
+                await send_telegram(fallback, parse_mode="")
+            else:
+                raise
+
     results = await asyncio.gather(
-        send_telegram(telegram_msg),
+        _send_telegram_with_fallback(),
         send_email(subject, plain, html),
         return_exceptions=True,
     )

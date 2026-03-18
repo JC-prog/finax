@@ -6,6 +6,7 @@ from datetime import datetime, timezone
 
 import httpx
 
+from finax.agents.alert import notify_error
 from finax.config import settings
 from finax.state import FinaxState, NewsArticle
 
@@ -37,6 +38,10 @@ async def _fetch_page(
 
     for attempt in range(2):
         response = await client.get(f"{NEWSDATA_BASE}/news", params=params)
+
+        if response.status_code in (401, 403):
+            # Invalid or expired API key — do not retry
+            response.raise_for_status()
 
         if response.status_code == 429:
             retry_after = int(response.headers.get("Retry-After", "60"))
@@ -127,6 +132,11 @@ async def scout_node(state: FinaxState) -> dict:
                 raw_results, next_page = await _fetch_page(client, api_key, query, next_page)
             except httpx.HTTPStatusError as exc:
                 logger.error("NewsData.io HTTP error on page %d: %s", page_num + 1, exc)
+                if exc.response.status_code in (401, 403):
+                    await notify_error(
+                        f"NewsData.io API key rejected ({exc.response.status_code}). "
+                        "Update NEWSDATA_API_KEY and restart."
+                    )
                 break
             except httpx.RequestError as exc:
                 logger.error("NewsData.io request error on page %d: %s", page_num + 1, exc)
