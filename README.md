@@ -23,8 +23,11 @@ uv sync
 cp .env.example .env
 # Fill in API keys and SMTP credentials in .env
 
-# 3. Run
+# 3. Run the scheduler daemon
 uv run finax
+
+# Or run the pipeline once immediately and exit
+uv run finax --run-now
 ```
 
 ## Configuration
@@ -45,6 +48,7 @@ Copy `.env.example` to `.env` and set the following variables:
 | `SCHEDULE_HOUR` | Hour to run (default: `6`) |
 | `SCHEDULE_MINUTE` | Minute to run (default: `0`) |
 | `SCHEDULE_TIMEZONE` | Timezone (default: `Asia/Singapore`) |
+| `LOG_DIR` | Directory for log files (default: `logs/`) |
 
 ## Architecture
 
