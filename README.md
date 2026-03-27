@@ -4,7 +4,7 @@ Autonomous multi-agent financial intelligence system for real-time market monito
 
 Finax fetches financial news, runs LLM-powered sentiment analysis via Google Gemini, and delivers daily digests to Telegram and email on a configurable schedule.
 
-![Finax Screenshot](asset/finax-screenshot.jpeg)
+<img src="asset/finax-screenshot.jpeg" width="300" />
 
 ## Features
 
